@@ -1,0 +1,41 @@
+% !TEX root = main.tex
+
+\section{Metodologia}\label{sec:proposed_solution}
+
+---- IDEIAS -----
+
+como os dados da estação são capturados? todas as variaveis, tempo de amostragem
+
+Como eles são formatados para enviar ao ESP? tempo de coleta, métricas estatísticas, variáveis de interesse, vetor uart
+
+estudar ainda essa formatação. dados de interesse: temp, umid, concentração de 5 compostos = 7 variáveis.
+
+métricas de média, mínima e máxima, quantidade de amostras constante.
+
+integração com o DMA
+
+ESP recebe o pacote uart, formata pacote de envio wireless
+
+recepcção de decodificação de pacote wireless na nuvem
+
+integração com o servidor de aplicação
+
+------ EM TERMOS GERAIS --------
+
+A estação tem amostragem de dados a cada 4 segundos. Todos os dados da estação são amostrados e registrados localmente em cartão SD. A estação é focada em 5 sensores da fabricante Semeatech MODELO. Sensores de VOC, H2S, SO2, NH3 e CH3SH. Estes sensores eletroquímicos fornecem a saída digital da concentração do composto detectada e da temperatura e da umidade captadas pelo sensor que são utilizados nos algoritmos de compensação. 
+
+O escopo do projeto prevê a correção e implementação das leituras via aprendizado de máquina com os dados brutos da estação na nuvem, e as variáveis esperadas pelo modelo são: concentração de cada composto e a média das leituras de temperatura e umidade de cada sensor.
+
+Um protocolo de comunicação baseado em UART foi desenvolvido para tramitar dados entre o microcontrolador aquisitor e o microcontrolador de conectividade. CONFIGURAÇÔES DO PADRÂO UART. O protocolo segue o fluxo de chaves e respostas. Foi atribuído um código de um \textit{byte} para corresponder a cada um dos sensores. Assim, o ESP32 requisita os dados de um sensor ao STM32, o STM32 monta um pacote para transmissão serial e responded a solicitação do ESP32. Esse pacote de transmissão UART é padronizado no tamanho de 8 bytes, sendo o primeiro o ID do sensor, os seis subsequentes são as leituras do sensor, o oitavo com o valor da soma de verificação do pacote. No ESP32 é verificado se a reposta recebida era a esperada pela verificação do ID do sensor e a integridade é verificada a partir do último byte. Uma vez que o pacote serial é válido, há a acumulação dos dados na RAM do ESP32.
+
+O STM32 acumula todas as leituras realizadas nas amostragens periódicas de 4 segundos até que o ESP32 solicite os pacotes. A cada ciclo de amostragem é acumulado o valor medido e verificado se valor máximo ou se valor mínimo. Um contador de amostras também é acrescido. Quando o ESP32 solicita as leituras do pacote. O STM32 divide os valos acumulados pelo contados de amostras para calcular a média de leituras obtidas entre as solicitações do ESP e separa os valores máximos e mínimos.
+
+Os dados do pacote de comunicação serial é Id do sensor, MSB da média, LSB da média, MSB da máxima, LSB da máxima, MSB da mínima, LSB da mínima, (contador de amostras), checksum.
+
+Com os dados das leituras no ESP32 é realizado a montagem do pacote para envio LoRaWAN.
+
+
+No servidor de rede o pacote é decodificado através de um decodificado em JavaScript e os dados são salvos em um json. Depois conectado ao webhook explicar o IoT agente e por aí vai
+
+
+Os dados são amostrados em painéis no grafana.

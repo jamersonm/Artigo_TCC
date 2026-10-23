@@ -1,0 +1,97 @@
+\section{Results} \label{sec:results}
+The experiments were carried out on the Santa Clara II bus line in the city of Toledo, Paraná. Two devices were configured, one with the algorithm based on a 30-second periodic transmission and the other with the algorithm based on angular position. Both devices were operated simultaneously. The tests were carried out on different days and at different times in order to capture the different situations to which the vehicle is exposed. During business hours, for example, the bus stops more frequently and takes longer to complete the route. On the other hand, the vehicle covers the route faster when there is less traffic. Two different experiments were conducted, one with a sensitivity setting of 30\textdegree and the other with a setting of 45\textdegree. Table \ref{exp_envios} shows the number of coordinates obtained in each test.
+
+% Ricardo, traduzir a tabela abaixo quando retirar a linha soma
+\begin{table}[]
+\begin{tabular}{l|ll|ll|}
+\cline{2-5}
+                                    & 30                         &         & 45                         &         \\ \hline
+\multicolumn{1}{|l|}{}              & \multicolumn{1}{l|}{Tempo} & Angular & \multicolumn{1}{l|}{Tempo} & Angular \\ \hline
+\multicolumn{1}{|l|}{Experimento 1} & \multicolumn{1}{l|}{81}    & 58      & \multicolumn{1}{l|}{90}    & 55      \\ \hline
+\multicolumn{1}{|l|}{Experimento 2} & \multicolumn{1}{l|}{80}    & 67      & \multicolumn{1}{l|}{80}    & 54      \\ \hline
+\multicolumn{1}{|l|}{Experimento 3} & \multicolumn{1}{l|}{69}    & 64      & \multicolumn{1}{l|}{90}    & 60      \\ \hline
+\multicolumn{1}{|l|}{Soma}          & \multicolumn{1}{l|}{230}   & 189     & \multicolumn{1}{l|}{260}   & 169     \\ \hline
+\multicolumn{1}{|l|}{Média}         & \multicolumn{1}{l|}{76}    & 63      & \multicolumn{1}{l|}{86}    & 56      \\ \hline
+\multicolumn{1}{|l|}{\% Redução}    & 17,10\%                    &         & 34,88\%                    &         \\ \hline
+\end{tabular}
+\caption{Quantidade de envios de coordenadas}
+\label{exp_envios}
+\end{table}
+
+O teste realizado com a configuração de 30° apresentou muitos pontos que não são coerentes com a proposta abordada. A fim de solucionar o problema, o ângulo de sensibilidade foi aumentado para 45° e assim os erros foram diminuidos sem acarretar em subamostragem. A Figura \ref{45_30} ilustra a mesma rota executada nas diferentes configurações. Em azul são representados os pontos ideais e em vermelho os pontos supérfluos. Nota-se que no destaque 1, na Figura \ref{config30}, há uma curva onde foi registrado três pontos enquanto na Figura \ref{config45} foi registrado apenas um. No destaque 2 há uma rotatória sem a efetiva mudança de trajeto, no entanto há o registro de duas coordenadas na Figura \ref{config30} e apenas uma na Figura \ref{config45}. Além, no destaque 3 vê-se duplicidades de registros.
+
+
+
+
+\begin{figure}[h]
+    \centering
+        \begin{subfigure}{.45\linewidth}
+        \centering
+        \includegraphics[width=1\linewidth]{img/config30}
+        \caption{Configuração 30°}
+        \label{config30}
+    \end{subfigure} %
+    \begin{subfigure}{.45\linewidth}
+        \centering
+        \includegraphics[width=1\linewidth]{img/config45}
+        \caption{Configuração 45°}
+        \label{config45}
+    \end{subfigure} \\
+    \caption{Resultados experimentais do algoritmo angular}
+    \label{45_30}
+\end{figure}
+
+Na Figura \ref{exp_results} são explicitados todos os pontos em que coordenadas geográficas foram registradas durante o experimento 1 na configuração de 45° como mostrado na Tabela \ref{exp_envios}. Os pontos em verde, Figura \ref{exp_tempo}, indicam o registro do algoritimo de envio periódico. Os pontos em azul e vermelho, Figura \ref{exp_angular}, indicam o registro do algoritmo com base em posição angular, sendo os destaques em vermelho para pontos de possíveis falhas no algoritmo, uma vez que não necessariamente indicam uma mudança de direção ou curva, como por exemplo, inclinações na mesma rua, rotatórias e pontos de ônibus.
+
+\begin{figure*}[h]
+    \centering
+\begin{subfigure}{.45\linewidth}
+    \centering
+    \includegraphics[width=1\linewidth]{img/exp_tempo2}
+    \caption{Algoritmo periódico}
+    \label{exp_tempo}
+\end{subfigure} %
+\begin{subfigure}{.45\linewidth}
+    \centering
+    \includegraphics[width=1\linewidth]{img/exp_angular2}
+    \caption{Algoritmo angular}
+    \label{exp_angular}
+\end{subfigure} \\
+\caption{Resultados experimentais}
+\label{exp_results}
+\end{figure*}
+
+Em um primeiro momento de comparação entre os resultados do teste na configuração 45° com o envio periódico, observa-se um decrécimo médio no envio de coordenadas de 30 pontos por rota. É previsto pela parte responsável 21 rotas neste trajeto em dias úteis e 11 rotas aos fim de semana e feriados. Estatisticamente, o algoritmo proposto reduz 3810 coordenadas em uma semana.
+
+Ademais, os recortes ilustrados na Figura \ref{shorts_exp} trazem outros tópicos à discussão.
+
+Na Figura \ref{exp_identify} vê-se que a partir dos resultados do algoritmo proposto é possível reconstruir a rota efetuada pelo veículo uma vez que se tem a informação de suas mudanças de direção, explicitada pelas setas em vermelho. Em contraste, os pontos referentes ao envio periódico, em verde, não possibilitam a reconstrução da rota de modo assertivo pois não há a certeza se o veículo acessou a \textit{R. Romano Feldkircher} (superior) ou a \textit{R. Ervino Hutt} (inferior) para registrar os pontos 1 e 2. 
+
+Em adição, na Figura \ref{exp_stop} observa-se as diferenças de operação dos dois dispositivos em situação de paradas, neste caso, em semáforos e em ponto de ônibus. O algoritmo de registro periódico apresentou pontos supérfluos em tais situações, que poderiam ser extrapoladas para engarrafamentos de horas e envios redundantes. Já o algoritmo com base em posição angular registrou apenas a curva ao entrar na \textit{R. Doze de Outubro}.
+
+Por fim, a Figura \ref{exp_line} explicita o desempenho dos dispositivos em retas. Na reta horizontal, ao centro, foram registrados sete pontos em verde, enquanto foram registrados apenas três pontos do dispositivo de algoritmo angular. Há neste recorte um ponto vermelho sinalizando uma coordenada registrada pelo algoritmo angular que não se encaixa na proposta do algoritmo, no entanto, destaca-se que há um ponto de ônibus naquele ponto e entende-se que para acessá-lo o ônibus virou o suficiente para que o algoritmo detectasse uma troca de direção. Ademais, aponta-se que, quanto mais longa for a reta, maior será a economia de registros.
+
+
+\begin{figure}[h]
+    \centering
+\begin{subfigure}{.45\linewidth}
+    \centering
+    \includegraphics[width=0.9\linewidth]{img/exp_identify.png}
+    \caption{Identificação de rota}
+    \label{exp_identify}
+\end{subfigure} %
+\begin{subfigure}{.45\linewidth}
+    \centering
+    \includegraphics[width=0.9\linewidth]{img/exp_stop.png}
+    \caption{Paradas}
+    \label{exp_stop}
+\end{subfigure} \\
+\begin{subfigure}{.5\textwidth}
+    \centering
+    \includegraphics[width=.7\linewidth]{img/exp_line.png}
+    \caption{Desempenho em reta}
+    \label{exp_line}
+\end{subfigure}
+\caption{Recortes do experimento}
+\label{shorts_exp}
+\end{figure}

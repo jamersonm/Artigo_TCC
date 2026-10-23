@@ -1,0 +1,36 @@
+% !TEX root = main.tex
+
+\section{Definições e trabalhos relacionados} \label{sec:definitions_related}
+Na elaboração deste trabalho foram abordados três domínios diferentes de comunicação: comunicação serial por meio do protocolo UART, comunicação sem fio por meio da modulação LoRa e o protocolo de rede LoRaWAN e o webhook com o IoT Agent. Nos seguintes parágrafos são definidos cada um dos cenários. 
+
+% -- texto do tcc
+A UART é um protocolo de comunicação serial assíncrona amplamente utilizado devido à sua simplicidade e baixo custo de implementação. Ela transmite os dados bit a bit, sem a necessidade de um sinal de clock compartilhado, utilizando apenas duas linhas principais: TX (transmissão) e RX (recepção). A UART é ideal para comunicação ponto a ponto, como entre um microcontrolador e um módulo Bluetooth ou GPS. Sua velocidade é limitada, mas suficiente para muitos usos em IoT e dispositivos embarcados.
+
+LoRaWAN (\textit{Long Range Wide Area Network}) é um protocolo de comunicação voltado para redes de longo alcance e baixo consumo de energia, muito utilizado em aplicações de IoT. Ele opera em bandas de frequência livres (915 MHz nas Américas) e permite que dispositivos transmitam dados por vários quilômetros, mesmo com consumo mínimo de energia. O protocolo segue uma arquitetura em estrela, na qual dispositivos finais (nós) se comunicam com \textit{gateways} que encaminham os dados para um servidor de rede na nuvem. A principal vantagem do LoRaWAN é sua capacidade de conectar um grande número de dispositivos em áreas amplas, sendo ideal para aplicações como monitoramento ambiental, agricultura remota, rastreamento de ativos e medição inteligente (\textit{smart metering}).
+
+Comentar um pouco sobre a captação do dado no servidor de rede e FIWARE, webhook, bando de dados, iot agent, orion, Cygnus/PostgresSQL, Grafana
+
+% -- texto do tcc
+%\begin{figure}[htbp]
+%    \centering
+%    \includegraphics[width=.5\linewidth]{img/IMU.png}
+%    \caption{IMU based on two types of sensors.}
+%    \label{imu}
+%end{figure}
+
+\subsection{Related Work}
+% mais ou menos 6 paragrafos
+
+trabalhos sobre estações de monitoramento de baixo custo
+- estado da ar sensores de baixo custo
+
+trabalhos sobre monitoramento remoto
+- rede de sensores na suiça
+- dissertação do pastorio
+
+trabalhos com LoRaWAN focado para monitoramento
+- \autoref{jabbar2022lorawan}
+
+%trabalhos com UART para protocolos de comunicação
+
+trabalhos com integração na Fiware

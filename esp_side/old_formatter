@@ -1,0 +1,100 @@
+function decodeUplink(input) {
+  var decoded = {};
+  const EXPECTED_LENGTH = 42;
+  const payloadBytes = input.bytes;
+
+  // Verifica se o payload tem o tamanho esperado
+  if (payloadBytes.length !== EXPECTED_LENGTH) {
+    return {
+      data: {},
+      warnings: [],
+      errors: [`Payload inválido: esperado ${EXPECTED_LENGTH} bytes, mas recebido ${payloadBytes.length} bytes.`]
+    };
+  }
+
+  // Função auxiliar para ler 16 bits (Big Endian)
+  function readInt16(index) {
+    return (payloadBytes[index] << 8) | payloadBytes[index + 1];
+  }
+
+  // --- DECODIFICAÇÃO DOS DADOS (Conforme o novo empacotador C) ---
+
+  // VOC - ppb (Bytes 0-5)
+  decoded.voc_ppb_avg = readInt16(0);
+  decoded.voc_ppb_max = readInt16(2);
+  decoded.voc_ppb_min = readInt16(4);
+
+  // H2S - ppb (Bytes 6-11)
+  decoded.h2s_ppb_avg = readInt16(6);
+  decoded.h2s_ppb_max = readInt16(8);
+  decoded.h2s_ppb_min = readInt16(10);
+
+  // SO2 - ppb (Bytes 12-17)
+  decoded.so2_ppb_avg = readInt16(12);
+  decoded.so2_ppb_max = readInt16(14);
+  decoded.so2_ppb_min = readInt16(16);
+
+  // NH3 - ppb (Bytes 18-23)
+  decoded.nh3_ppb_avg = readInt16(18);
+  decoded.nh3_ppb_max = readInt16(20);
+  decoded.nh3_ppb_min = readInt16(22);
+
+  // CH3SH - ppb (Bytes 24-29)
+  decoded.ch3sh_ppb_avg = readInt16(24);
+  decoded.ch3sh_ppb_max = readInt16(26);
+  decoded.ch3sh_ppb_min = readInt16(28);
+
+  // TEMP - °C (Bytes 30-35)
+  decoded.temp_avg = readInt16(30) / 100.0;
+  decoded.temp_max = readInt16(32) / 100.0;
+  decoded.temp_min = readInt16(34) / 100.0;
+
+  // HUM - % (Bytes 36-41)
+  decoded.hum_avg = readInt16(36) / 100.0;
+  decoded.hum_max = readInt16(38) / 100.0;
+  decoded.hum_min = readInt16(40) / 100.0;
+  
+  // PRESS - hPa (Bytes 42-49)
+  decoded.press_avg = readInt16(42) + 90000;
+  decoded.press_max = readInt16(44) + 90000;
+  decoded.press_min = readInt16(46) + 90000;
+  
+  // ANEMO
+  decoded.wind_direction = readInt8(48)
+  decoded.wind_speed_avg = readInt8(49)
+  decoded.wind_speed_max = readInt8(50)
+  decoded.wind_speed_min = readInt8(51)
+
+  // --- CÁLCULOS DE CONVERSÃO (µg/m³) ---
+  // MM - Em g/mol
+  const MM_voc   = 92.14; 
+  const MM_h2s   = 34.08;
+  const MM_so2   = 64.06;
+  const MM_nh3   = 17.04;
+  const MM_ch3sh = 48.11;
+  const R = 0.082057;
+
+  // Como o BME está comentado no seu empacotador, 
+  // assumiremos Pressão de 1 atm (101325 Pa) para o cálculo.
+  const pressurePa = 101325.00;
+
+  function calcularUG(ppb, tempCelsius, mm) {
+    const tempKelvin = tempCelsius + 273.15;
+    const pressureAtm = pressurePa / 101325.00;
+    const vm = (R * tempKelvin) / pressureAtm;
+    return parseFloat(((ppb * mm) / vm).toFixed(2));
+  }
+
+  // Conversão usando a temperatura média (temp_avg)
+  decoded.voc_ug_avg   = calcularUG(decoded.voc_ppb_avg, decoded.temp_avg, MM_voc);
+  decoded.h2s_ug_avg   = calcularUG(decoded.h2s_ppb_avg, decoded.temp_avg, MM_h2s);
+  decoded.so2_ug_avg   = calcularUG(decoded.so2_ppb_avg, decoded.temp_avg, MM_so2);
+  decoded.nh3_ug_avg   = calcularUG(decoded.nh3_ppb_avg, decoded.temp_avg, MM_nh3);
+  decoded.ch3sh_ug_avg = calcularUG(decoded.ch3sh_ppb_avg, decoded.temp_avg, MM_ch3sh);
+
+  return {
+    data: decoded,
+    warnings: [],
+    errors: []
+  };
+}

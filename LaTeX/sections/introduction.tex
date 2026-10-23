@@ -1,0 +1,33 @@
+% !TEX root = main.tex
+
+\section{Introdução}
+% 6 a 8 parágrafos
+
+%Cidades inteligentes, sistemas embarcados, internet das coisas
+
+%monitoramento de odor, relação com iot exemplos de sistemas de monitoramento pelo mundo (analises métricas)
+
+%A estação
+
+%protocolo de comunicação uart, protocolo LoRaWAN
+
+%iot agent, servidor de aplicação
+
+%Implementação, processos de comunicação, 
+
+%resultados
+
+%-------------------------------------
+O crescimento acelerado dos centros urbanos e o aumento da complexidade na gestão de serviços públicos impulsionaram o desenvolvimento do conceito de Cidades Inteligentes. Esse conceito envolve a adoção de políticas, estratégias e soluções tecnológicas voltadas ao gerenciamento eficiente de recursos urbanos com base em dados coletados em capo, seja em tempo real ou por meio de amostragem temporal. O objetivo central é promover mais eficiência operacional, crescimento alinhado a sustentabilidade ambiental e melhoria na qualidade de vida da população. Entre as principais áreas de aplicação destacam-se cenários de gestão de trânsito e mobilidade urbana, segurança pública, monitoramento ambiental e controle de poluição atmosférica, hídrica e sonora.
+
+Para viabilizar a coleta e o processamento dessas informações distribuídas pelo ambiente urbano, são amplamente empregados sistemas embarcados. Sistemas embarcados são dispositivos que incorporam um computador programável, mas que não se caracterizam como computadores de uso geral, sendo projetados para desempenhar funções específicas dentro de um sistema maior~\cite{wolf2003embedded}. O processamento é realizado por um software residente na própria unidade de processamento, denominado \textit{firmware}, responsável pelo controle e execução das tarefas previamente definidas. De modo geral, sistemas embarcados são concebidos para executar funções fixas e automatizadas, frequentemente sem necessidade de intervenção humana contínua. Como resultado, apresentam vantagens como menor demanda por recursos computacionais, maior eficiência energética e elevada confiabilidade quando comparados a sistemas computacionais de propósito geral~\cite{almeida2016programacao}.
+
+Para que esses sistemas atuem de forma coordenada e integrada em larga escala, torna-se necessária uma infraestrutura de comunicação capaz de interligá-los. Nesse contexto, é destacado o paradigma de Internet das Coisas (IoT), que possibilita a conexão de sensores, atuadores e sistemas computacionais por meio de redes de comunicação, permitindo o compartilhamento contínuo de dados e a formação de ecossistemas inteligentes distribuídos. A IoT atua, portanto, como elemento integrador entre os sistemas embarcados e as plataformas de gestão urbana no cenário de Cidades Inteligentes, viabilizando o monitoramento remoto, análise de dados e suporte à tomada de decisão em tempo real.
+
+Inserido nesse panorama, este trabalho apresenta a implementação de um sistema de comunicação para dados capturados por uma estação de monitoramento de odor de baixo-custo. O monitoramento de odores constitui um desafio relevante na gestão ambiental urbana, especialmente em regiões industriais ou densamente povoadas, onde emissões atmosféricas impactam diretamente o bem-estar da população. A estação, originalmente, é caracterizada como um sistema embarcado porém, A incorporação desse sistema de comunicação agrega conectividade IoT ao dispositivo, permitindo sua inserção no contexto de cidades inteligentes. 
+
+Inserido nesse panorama, este trabalho apresenta a implementação de um sistema de comunicação para os dados capturados por uma estação de monitoramento de odor de baixo custo. O monitoramento de odores constitui um desafio relevante na gestão ambiental urbana, especialmente em regiões industriais ou densamente povoadas, onde emissões atmosféricas impactam diretamente o bem-estar da população. A estão é originalmente caracterizada como um sistema embarcado, entretanto, a incorporação desse sistema de comunicação agrega a conectividade IoT ao dispositivo, permitindo sua inserção no contexto de cidades inteligentes.
+
+O sistema desenvolvido realiza a aquisição dos dados da estação por meio de um protocolo de comunicação serial, em conformidade com as limitações de hardware do sistema embarcado. Após a coleta, o vetor de dados é processado e estruturado adequadamente para a transmissão sem fio. A comunicação com a nuvem é realizada por meio da modulação LoRa e do protocolo de rede LoRaWAN, possibilitando conectividade de longo alcance com baixo consumo energético. Uma vez na nuvem, os dados são encaminhados ao servidor de aplicação por intermédio de um IoT Agent integrado ao ecossistema Fiware, onde são disponibilizados de forma estruturada para armazenamento, visualização e análise.
+
+Desta forma, a solução proposta viabiliza a integração de uma estação de monitoramento de odor de baixo custo à infraestrutura IoT de uma cidade inteligente, ampliando o acesso a tecnologias de monitoramento ambiental e contribuindo para a tomada de decisão baseada em dados.

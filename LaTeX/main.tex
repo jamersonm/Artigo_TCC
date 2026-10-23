@@ -1,0 +1,53 @@
+
+\documentclass[conference]{IEEEtran}
+% SOBRE O WARNING DE COMPILAÇÃO
+% This happens because the IEEEtrans Class has its own definition on caption layout, and one of the packages you used calls package caption.
+
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{multirow}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{subfig}
+%\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+%    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\usepackage{hyperref}
+\PassOptionsToPackage{hyphens}{url}\usepackage{hyperref}
+\usepackage{gensymb}
+
+
+\begin{document}
+
+%\title{Route Tracking Algorithm by Angular Position}
+%\title{An angular position-based tracking algorithm for geolocation in LoRaWAN networks}
+\title{Implementação de um sistema de comunicação para visualização de dados de uma estação de monitoramento de odor de baixo custo}
+\author{\IEEEauthorblockN{Jamerson A. Muniz\IEEEauthorrefmark{1}, Edson T. de Camargo\IEEEauthorrefmark{1}\IEEEauthorrefmark{2}} \\
+
+     \IEEEauthorblockA{\IEEEauthorrefmark{1} Federal Technology University of Paraná (UTFPR) -- Toledo, Brazil}
+     \IEEEauthorblockA{\IEEEauthorrefmark{2} Graduate Program in Computer Science -- State University of Western Paraná (UNIOESTE) -- Cascavel, Brazil}  
+     
+ Email: \textit{jamersonm@alunos.utfpr.edu.br, edson@utfpr.edu.br}  }
+
+
+\maketitle
+\pagestyle{plain}
+
+\input{sections/abstract}
+\input{sections/introduction}
+\input{sections/related}
+\input{sections/proposed-solution}
+\input{sections/results}
+\input{sections/conclusion}
+
+\section{Acknowledgement}
+This study was partially support by Fundação Araucaria Public Call 20/2018: First Projects Program (FA/CNPq) and CNPq for the Technological Initiation Scholarship.
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
