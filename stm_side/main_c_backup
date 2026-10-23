@@ -1,0 +1,771 @@
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2024 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "adc.h"
+#include "dma.h"
+#include "app_fatfs.h"
+#include "i2c.h"
+#include "iwdg.h"
+#include "rtc.h"
+#include "spi.h"
+#include "tim.h"
+#include "usart.h"
+#include "gpio.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include "sdcard.h"
+#include "stdio.h"
+#include "stdlib.h"
+#include "alphasense.h"
+#include "7Smart_Semeatech.h"
+#include "bme280.h"
+#include "string.h"
+//#include "INA219.h"
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+
+typedef struct
+{
+	float fator;
+	float temperatura;
+
+	sensorAlphasense co;
+	sensorAlphasense nh3;
+	sensorAlphasense voc;
+	sensorAlphasense so2;
+	sensorAlphasense h2s;
+}
+ALPHASENSE;
+
+struct MICS
+{
+	float co, nh3, no2;
+};
+typedef struct MICS MICS6814;
+
+enum dir_vento{ Norte_Nordeste = 1,
+				Leste_Nordeste = 2,
+				Leste_Sudeste = 3,
+				Sul_Sudeste = 4,
+				Sul_Sudoeste = 5,
+				Oeste_Sudoeste = 6,
+				Oeste_Noroeste = 7,
+				Norte_Noroeste = 8};
+struct VENTO
+{
+	float vel_ms;
+	enum dir_vento direcao;
+};
+typedef struct VENTO ANEMO;
+
+//INA219_t ina219;
+
+
+
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+
+#define IWDG_ON
+#define DEBUG_ON
+#define INA219_ADDRESS_U28 0x45
+#define INA219_ADDRESS_U29 0x40
+
+// CONFIGURACAO INICIAL REAL TIME CLOCK (HORA E DATA)
+//#define INIT_RTC
+
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+
+/* USER CODE BEGIN PV */
+volatile uint16_t adc1_dma_result[9] = {0,0,0,0,0,0,0,0,0};
+const uint8_t adc1_channel_count = sizeof(adc1_dma_result)/sizeof(adc1_dma_result[0]);
+volatile uint16_t adc2_dma_result[6] = {0,0,0,0,0,0};
+const uint8_t adc2_channel_count = sizeof(adc2_dma_result)/sizeof(adc2_dma_result[0]);
+
+sensorSematech ch3sh_semeatech, nh3_semeatech, so2_semeatech, h2s_semeatech, voc_semeatech;
+MICS6814 mics;
+BME280 bme;
+ANEMO anemo;
+
+//uint8_t texto[1] = "C";                                            // JAMERSON ------------------------------
+//uint8_t hello_stm[] = "Hello, world from STM da estacao\r\n";
+//uint8_t packet[92];
+//uint8_t texto_rx[1];
+//uint16_t cnt_rx = 0;
+//uint16_t cnt_tx = 0;
+//uint16_t debug = 0;
+//int offset = 0;
+
+typedef enum{
+  UART_STATE_GET_VOC    = 0x41, // "A"
+  UART_STATE_GET_H2S    = 0x42, // "B"
+  UART_STATE_GET_SO2    = 0x43, // "C"
+  UART_STATE_GET_NH3    = 0x44, // "D"
+  UART_STATE_GET_CH3SH  = 0x45, // "E"
+  UART_STATE_GET_MICS   = 0x46, // "F"
+  UART_STATE_GET_BME    = 0x47, // "G"
+  UART_STATE_GET_ANEMO  = 0x48, // "H"
+  UART_STATE_ERROR      = 0x58  // "X"
+} enum_get_sensors;
+
+static uint8_t rx_received[1];
+static uint8_t packet[8];
+uint8_t wake_up = 0x79;
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+/* USER CODE BEGIN PFP */
+uint16_t contador_amostragem = 0;
+uint32_t voc_ppb_acumulado = 0;
+uint32_t h2s_ppb_acumulado = 0;
+uint32_t so2_ppb_acumulado = 0;
+uint32_t nh3_ppb_acumulado = 0;
+uint32_t ch3sh_ppb_acumulado = 0;
+
+uint16_t voc_ppb_max = 0;
+uint16_t h2s_ppb_max = 0;
+uint16_t so2_ppb_max = 0;
+uint16_t nh3_ppb_max = 0;
+uint16_t ch3sh_ppb_max = 0;
+uint16_t voc_ppb_min = 0xFFFF;
+uint16_t h2s_ppb_min = 0xFFFF;
+uint16_t so2_ppb_min = 0xFFFF;
+uint16_t nh3_ppb_min = 0xFFFF;
+uint16_t ch3sh_ppb_min = 0xFFFF;
+
+void parse_data()
+{
+	// acumulador para média
+	voc_ppb_acumulado = voc_ppb_acumulado + voc_semeatech.ppb;
+	h2s_ppb_acumulado = h2s_ppb_acumulado + h2s_semeatech.ppb;
+	so2_ppb_acumulado = so2_ppb_acumulado + so2_semeatech.ppb;
+	nh3_ppb_acumulado = nh3_ppb_acumulado + nh3_semeatech.ppb;
+	ch3sh_ppb_acumulado = ch3sh_ppb_acumulado + ch3sh_semeatech.ppb;
+	// valores máximos
+	voc_ppb_max = (voc_semeatech.ppb > voc_ppb_max) ? voc_semeatech.ppb : voc_ppb_max;
+	h2s_ppb_max = (h2s_semeatech.ppb > h2s_ppb_max) ? h2s_semeatech.ppb : h2s_ppb_max;
+	so2_ppb_max = (so2_semeatech.ppb > so2_ppb_max) ? so2_semeatech.ppb : so2_ppb_max;
+	nh3_ppb_max = (nh3_semeatech.ppb > nh3_ppb_max) ? nh3_semeatech.ppb : nh3_ppb_max;
+	ch3sh_ppb_max = (ch3sh_semeatech.ppb > ch3sh_ppb_max) ? ch3sh_semeatech.ppb : ch3sh_ppb_max;
+	// valores mínimos
+	voc_ppb_min = (voc_semeatech.ppb < voc_ppb_min) ? voc_semeatech.ppb : voc_ppb_min;
+	h2s_ppb_min = (h2s_semeatech.ppb < h2s_ppb_min) ? h2s_semeatech.ppb : h2s_ppb_min;
+	so2_ppb_min = (so2_semeatech.ppb < so2_ppb_min) ? so2_semeatech.ppb : so2_ppb_min;
+	nh3_ppb_min = (nh3_semeatech.ppb < nh3_ppb_min) ? nh3_semeatech.ppb : nh3_ppb_min;
+	ch3sh_ppb_min = (ch3sh_semeatech.ppb < ch3sh_ppb_min) ? ch3sh_semeatech.ppb : ch3sh_ppb_min;
+
+	contador_amostragem++;
+}
+
+void build_packet(enum_get_sensors sensor){
+	uint16_t aux_16;
+	switch(sensor){
+		case UART_STATE_GET_VOC:
+			packet[0] = UART_STATE_GET_VOC;
+			aux_16 = (uint16_t)(voc_semeatech.ppb);
+			packet[1] = (aux_16 >> 8) & 0xFF;
+			packet[2] = aux_16 & 0xFF;
+			aux_16 = (uint16_t)(voc_semeatech.temperature*100.0f);
+			packet[3] = (aux_16 >> 8) & 0xFF;
+			packet[4] = aux_16 & 0xFF;
+			aux_16 = (uint16_t)(voc_semeatech.humidity*100.0f);
+			packet[5] = (aux_16 >> 8) & 0xFF;
+			packet[6] = aux_16 & 0xFF;
+			break;
+		case UART_STATE_GET_H2S:
+			packet[0] = UART_STATE_GET_H2S;
+			aux_16 = (uint16_t)(h2s_semeatech.ppb);
+			packet[1] = (aux_16 >> 8) & 0xFF;
+			packet[2] = aux_16 & 0xFF;
+			aux_16 = (uint16_t)(h2s_semeatech.temperature*100.0f);
+			packet[3] = (aux_16 >> 8) & 0xFF;
+			packet[4] = aux_16 & 0xFF;
+			aux_16 = (uint16_t)(h2s_semeatech.humidity*100.0f);
+			packet[5] = (aux_16 >> 8) & 0xFF;
+			packet[6] = aux_16 & 0xFF;
+			break;
+		case UART_STATE_GET_SO2:
+			packet[0] = UART_STATE_GET_SO2;
+			aux_16 = (uint16_t)(so2_semeatech.ppb);
+			packet[1] = (aux_16 >> 8) & 0xFF;
+			packet[2] = aux_16 & 0xFF;
+			aux_16 = (uint16_t)(so2_semeatech.temperature*100.0f);
+			packet[3] = (aux_16 >> 8) & 0xFF;
+			packet[4] = aux_16 & 0xFF;
+			aux_16 = (uint16_t)(so2_semeatech.humidity*100.0f);
+			packet[5] = (aux_16 >> 8) & 0xFF;
+			packet[6] = aux_16 & 0xFF;
+			break;
+		case UART_STATE_GET_NH3:
+			packet[0] = UART_STATE_GET_NH3;
+			aux_16 = (uint16_t)(nh3_semeatech.ppb);
+			packet[1] = (aux_16 >> 8) & 0xFF;
+			packet[2] = aux_16 & 0xFF;
+			aux_16 = (uint16_t)(nh3_semeatech.temperature*100.0f);
+			packet[3] = (aux_16 >> 8) & 0xFF;
+			packet[4] = aux_16 & 0xFF;
+			aux_16 = (uint16_t)(nh3_semeatech.humidity*100.0f);
+			packet[5] = (aux_16 >> 8) & 0xFF;
+			packet[6] = aux_16 & 0xFF;
+			break;
+		case UART_STATE_GET_CH3SH:
+			packet[0] = UART_STATE_GET_CH3SH;
+			aux_16 = (uint16_t)(ch3sh_semeatech.ppb);
+			packet[1] = (aux_16 >> 8) & 0xFF;
+			packet[2] = aux_16 & 0xFF;
+			aux_16 = (uint16_t)(ch3sh_semeatech.temperature*100.0f);
+			packet[3] = (aux_16 >> 8) & 0xFF;
+			packet[4] = aux_16 & 0xFF;
+			aux_16 = (uint16_t)(ch3sh_semeatech.humidity*100.0f);
+			packet[5] = (aux_16 >> 8) & 0xFF;
+			packet[6] = aux_16 & 0xFF;
+			break;
+		case UART_STATE_GET_MICS:
+			/*packet[1]  = 0x63  ; // id da medida 1 "c"pb
+			packet[6]  = 0x6E  ; // id da medida 2 "n"g
+			packet[11] = 0x6F  ; // id da medida 3 "o"emp
+			packet[16] = 0x6C  ; // id da medida 4 nul"l"
+			float_to_bytes(mics_co, temp_buffer);
+			memcpy(&packet[2], temp_buffer, 4);
+			float_to_bytes(mics_nh3, temp_buffer);
+			memcpy(&packet[7], temp_buffer, 4);
+			float_to_bytes(mics_no2, temp_buffer);
+			memcpy(&packet[12], temp_buffer, 4);
+			memset(&packet[17], 0, 4);
+			break;*/
+		case UART_STATE_GET_BME:
+			packet[0] = UART_STATE_GET_BME;
+			aux_16 = (uint16_t)(bme.temp*100.0f);
+			packet[1] = (aux_16 >> 8) & 0xFF;
+			packet[2] = aux_16 & 0xFF;
+			aux_16 = (uint16_t)(bme.pres - 90000);
+			packet[3] = (aux_16 >> 8) & 0xFF;
+			packet[4] = aux_16 & 0xFF;
+			aux_16 = (uint16_t)(bme.humid*100.0f);
+			packet[5] = (aux_16 >> 8) & 0xFF;
+			packet[6] = aux_16 & 0xFF;
+			break;
+		case UART_STATE_GET_ANEMO:
+			packet[0] = UART_STATE_GET_ANEMO;
+			packet[1] = (uint8_t)anemo.direcao;
+			packet[2] = (uint8_t)anemo.vel_ms;
+			packet[3] = 0;
+			packet[4] = 0;
+			packet[5] = 0;
+			packet[6] = 0;
+			break;
+		default:
+			// Limpa os dados em caso de sensor inválido
+			memset(&packet[0], 0, 8);
+			break;
+	}
+
+	uint8_t xor_checksum = 0;
+	for (int i = 0; i < 7; i++) {
+	    xor_checksum ^= packet[i];
+	}
+	packet[7] = xor_checksum;
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart->Instance == USART1) {
+      build_packet(rx_received[0]);
+      
+      HAL_UART_AbortTransmit(huart);
+      HAL_UART_Transmit_DMA(&huart1, packet, 8);
+      HAL_UART_Receive_DMA(&huart1, rx_received, 1);
+    }
+}
+
+void initSensorAlphasense(ALPHASENSE *sensores);
+void readSensoresAlphasense(ALPHASENSE *sensores);
+
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+
+void initSensorAlphasense(ALPHASENSE *sensores)
+{
+
+	/*
+	 *  DIVISOR DE TENSAO = 6k8 e 3k3
+	 *  divisor tensao = 6k8 / (6k8 + 3k3)
+	 *  fator = 1 / divisor tensao
+	 */
+	sensores->fator = 1.485;
+	sensores->temperatura = 25;
+
+	// SENSOR CO-B4
+	sensores->co.code = CO_B4;
+	//sensores->co.equation = 1;
+	sensores->co.equation = 2;
+	sensores->co.WE_0_value = 322;
+	sensores->co.AE_0_value = 344;
+	sensores->co.WE_E_value = 335;
+	sensores->co.AE_E_value = 342;
+	sensores->co.gain_mV_ppb = 0.370;
+
+	// SENSOR S02-B4
+	sensores->so2.code = SO2_B4;
+	//sensores->so2.equation = 4;
+	sensores->so2.equation = 1;
+	sensores->so2.WE_0_value = 412;
+	sensores->so2.AE_0_value = 372;
+	sensores->so2.WE_E_value = 360;
+	sensores->so2.AE_E_value = 358;
+	sensores->so2.gain_mV_ppb = 0.380;
+
+	//SENSOR VOC-B4
+	sensores->voc.code = VOC_B4;
+	sensores->voc.equation = 3;
+	sensores->voc.WE_0_value = 473;
+	sensores->voc.AE_0_value = 324;
+	sensores->voc.WE_E_value = 340;
+	sensores->voc.AE_E_value = 351;
+	sensores->voc.gain_mV_ppb = 0.537;
+
+	//SENSOR NH3-B1
+	sensores->nh3.code = NH3_B1;
+	//sensores->nh3.equation = 4;
+	sensores->nh3.equation = 3;
+	sensores->nh3.WE_0_value = 963;
+	sensores->nh3.AE_0_value = 281;
+	sensores->nh3.WE_E_value = 280;
+	sensores->nh3.AE_E_value = 281;
+	sensores->nh3.gain_mV_ppb = 0.030;
+
+	//SENSOR H2S-B4
+	sensores->h2s.code = H2S_B4;
+	sensores->h2s.equation = 1;
+	sensores->h2s.WE_0_value = 360;
+	sensores->h2s.AE_0_value = 340;
+	sensores->h2s.WE_E_value = 348;
+	sensores->h2s.AE_E_value = 340;
+	sensores->h2s.gain_mV_ppb = 1.566;
+}
+
+void readSensoresAlphasense(ALPHASENSE *sensores)
+{
+	/* ADC1 */
+
+	sensores->so2.WE_U_raw = sensores->fator*adc1_dma_result[1]*3300/4095;
+	sensores->so2.AE_U_raw = sensores->fator*adc1_dma_result[0]*3300/4095;
+	sensores->so2.temperature = sensores->temperatura;
+
+	sensores->h2s.WE_U_raw = sensores->fator*adc1_dma_result[3]*3300/4095;
+	sensores->h2s.AE_U_raw = sensores->fator*adc1_dma_result[2]*3300/4095;
+	sensores->h2s.temperature = sensores->temperatura;
+
+	sensores->co.WE_U_raw = sensores->fator*adc1_dma_result[5]*3300/4095;
+	sensores->co.AE_U_raw = sensores->fator*adc1_dma_result[4]*3300/4095;
+	sensores->co.temperature = sensores->temperatura;
+
+	sensores->voc.WE_U_raw = sensores->fator*adc1_dma_result[7]*3300/4095;
+	sensores->voc.AE_U_raw = sensores->fator*adc1_dma_result[6]*3300/4095;
+	sensores->voc.temperature = sensores->temperatura;
+
+	/* ADC2 */
+
+	sensores->nh3.WE_U_raw = sensores->fator*adc2_dma_result[0]*3300/4095;
+	sensores->nh3.AE_U_raw = sensores->fator*adc2_dma_result[1]*3300/4095;
+	sensores->nh3.temperature = sensores->temperatura;
+
+	/*
+	 * CALCULO EQUACOES ALPHASENSE
+	 */
+	/*
+	calc_ppm_ppb(&sensores->h2s);
+	calc_ppm_ppb(&sensores->so2);
+	calc_ppm_ppb(&sensores->co);
+	calc_ppm_ppb(&sensores->voc);
+	calc_ppm_ppb(&sensores->nh3);
+	*/
+}
+
+void readMICS6814(MICS6814 *mics)
+{
+	mics->co  = adc2_dma_result[2]*3300/4095;
+	mics->nh3 = adc2_dma_result[3]*3300/4095;
+	mics->no2 = adc2_dma_result[4]*3300/4095;
+}
+
+// Comparison function for floats
+int compare_floats(const void* a, const void* b) {
+    float fa = *(const float*)a;
+    float fb = *(const float*)b;
+    return (fa > fb) - (fa < fb);  // returns 1 if fa > fb, -1 if fa < fb, 0 if equal
+}
+
+void controleUmidade()
+{
+	int size = 5;
+	float umidade_media = 0;
+
+	float umidade_semeatech[] = {voc_semeatech.humidity, h2s_semeatech.humidity, so2_semeatech.humidity, nh3_semeatech.humidity, ch3sh_semeatech.humidity};
+
+    qsort(umidade_semeatech, size, sizeof(float), compare_floats);
+
+    //CALCULA A UMIDADE MEDIA NAO LEVANDO EM CONTA O MENOR E MAIOR VALOR
+    umidade_media = umidade_semeatech[1] + umidade_semeatech[2] + umidade_semeatech[3];
+    umidade_media = umidade_media/(size-2);
+
+    if(umidade_media >= 75) {
+    	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 3277); //DUTY CYCLE 20%
+    }
+    else {
+    	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0); //DUTY CYCLE 0%
+    }
+}
+
+
+void readVelDirVento(ANEMO *s)
+{
+	uint32_t dir_vento  = adc1_dma_result[8]*3300/4095;
+	uint32_t vel_vento = adc2_dma_result[5]*3300/4095;
+	s->vel_ms = 0;
+
+	if(dir_vento < 835)
+		s->direcao = Norte_Nordeste;
+	else if(dir_vento >= 835 && dir_vento < 1165)
+		s->direcao = Leste_Nordeste;
+	else if(dir_vento >= 1165 && dir_vento < 1495)
+		s->direcao = Leste_Sudeste;
+	else if(dir_vento >= 1495 && dir_vento < 1820)
+		s->direcao = Sul_Sudeste;
+	else if(dir_vento >= 1820 && dir_vento < 2145)
+		s->direcao = Sul_Sudoeste;
+	else if(dir_vento >= 2145 && dir_vento < 2465)
+		s->direcao = Oeste_Sudoeste;
+	else if(dir_vento >= 2465 && dir_vento < 2795)
+		s->direcao = Oeste_Noroeste;
+	else if(dir_vento >= 2465 && dir_vento < 2795)
+		s->direcao = Norte_Noroeste;
+
+	if(vel_vento < 559)
+		s->vel_ms = (13.42/1000)*vel_vento -7.5;
+}
+
+
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+
+  /* USER CODE BEGIN 1 */
+  char file_name[50];
+  //uint16_t current;
+
+  // CONFIGURACAO SENSORES ALPHASENSE
+  //ALPHASENSE *sensoresAlphasense = malloc(sizeof(ALPHASENSE));
+  //initSensorAlphasense(sensoresAlphasense);
+
+  // ESTRUTURA DADOS SENSORES SD CARD
+  DATASDCARD *medidas = malloc(sizeof(DATASDCARD));
+  medidas->tam = 31;
+  medidas->data = malloc(medidas->tam*sizeof(float));
+  medidas->hrtc = &hrtc;
+
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+  HAL_Delay(1000);
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_DMA_Init();
+  MX_ADC1_Init();
+  MX_ADC2_Init();
+  MX_SPI3_Init();
+  if (MX_FATFS_Init() != APP_OK) {
+    Error_Handler();
+  }
+  MX_RTC_Init();
+  MX_I2C3_Init();
+  MX_IWDG_Init();
+  MX_TIM2_Init();
+  MX_TIM4_Init();
+  MX_USART1_UART_Init();
+  /* USER CODE BEGIN 2 */
+
+  //HAL_UART_Receive_DMA(&huart1, rx_received, 1); // JAMERSON ------------------------------
+
+#ifdef IWDG_ON
+  //MX_IWDG_Init();
+#endif
+
+  HAL_Delay(1000);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
+
+  // Configuracao DMA
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t *) adc1_dma_result , adc1_channel_count);
+  HAL_ADC_Start_DMA(&hadc2, (uint32_t *) adc2_dma_result , adc2_channel_count);
+
+  //Calibracao ADC1
+  HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
+  HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
+
+  //Set Alimentacao 3VA3
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, 1);
+  //Set Alimentacao 5VA
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
+  //Set Alimentacao 3V3
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, 1);
+
+  //INIT TIMER
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+
+  //TIM2->CCR2 = 15000;
+  //TIM4->CCR1 = 15000;
+
+  //CONTROLE RESISTENCIA
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);
+  //CONTROLE FLUXO AR
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, 39000); //65% DUTY CYCLE
+
+  //CONFIG BME280
+  HAL_Delay(4000);
+  BME280_Config(OSRS_2, OSRS_16, OSRS_1, MODE_NORMAL, T_SB_0p5, IIR_16);
+
+  //CONFIG SENSOR VEL. DIREC. VENTO
+  //INA219_Init(&ina219, &hi2c1, INA219_ADDRESS_U28);
+
+  //Configuracao SD CARD
+  sprintf(file_name,"medidas%d.csv", 1);
+  if(initFileMedidas(file_name) == -1)
+    return 0;
+
+	HAL_Delay(1000);
+  HAL_UART_Receive_DMA(&huart1, rx_received, 1);
+  HAL_UART_Transmit_DMA(&huart1, &wake_up, sizeof(wake_up));
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+	//findAddrI2C(&hi2c3);
+
+	read_CH3SH_I2C(&hi2c3, &ch3sh_semeatech);
+	read_NH3_I2C(&hi2c3, &nh3_semeatech);
+	read_SO2_I2C(&hi2c3, &so2_semeatech);
+	read_H2S_I2C(&hi2c3, &h2s_semeatech);
+	read_VOC_I2C(&hi2c3, &voc_semeatech);
+	BME280_Measure(&bme);
+	readMICS6814(&mics);
+
+	readVelDirVento(&anemo);
+
+	medidas->data[0] = voc_semeatech.ppb;
+	medidas->data[1] = voc_semeatech.ug;
+	medidas->data[2] = voc_semeatech.temperature;
+	medidas->data[3] = voc_semeatech.humidity;
+	//float_to_bytes(voc_semeatech.ppb, packet, offset); offset += 4;
+	//float_to_bytes(voc_semeatech.ug, packet, offset); offset += 4;
+	//float_to_bytes(voc_semeatech.temperature, packet, offset); offset += 4;
+	//float_to_bytes(voc_semeatech.humidity, packet, offset); offset += 4;
+
+	medidas->data[4] = h2s_semeatech.ppb;
+	medidas->data[5] = h2s_semeatech.ug;
+	medidas->data[6] = h2s_semeatech.temperature;
+	medidas->data[7] = h2s_semeatech.humidity;
+	//float_to_bytes(h2s_semeatech.ppb, packet, offset); offset += 4;
+	//float_to_bytes(h2s_semeatech.ug, packet, offset); offset += 4;
+	//float_to_bytes(h2s_semeatech.temperature, packet, offset); offset += 4;
+	//float_to_bytes(h2s_semeatech.humidity, packet, offset); offset += 4;
+
+	medidas->data[8]  = so2_semeatech.ppb;
+	medidas->data[9]  = so2_semeatech.ug;
+	medidas->data[10] = so2_semeatech.temperature;
+	medidas->data[11] = so2_semeatech.humidity;
+	//float_to_bytes(so2_semeatech.ppb, packet, offset); offset += 4;
+	//float_to_bytes(so2_semeatech.ug, packet, offset); offset += 4;
+	//float_to_bytes(so2_semeatech.temperature, packet, offset); offset += 4;
+	//float_to_bytes(so2_semeatech.humidity, packet, offset); offset += 4;
+
+	medidas->data[12]  = nh3_semeatech.ppb;
+	medidas->data[13]  = nh3_semeatech.ug;
+	medidas->data[14]  = nh3_semeatech.temperature;
+	medidas->data[15]  = nh3_semeatech.humidity;
+	//float_to_bytes(nh3_semeatech.ppb, packet, offset); offset += 4;
+	//float_to_bytes(nh3_semeatech.ug, packet, offset); offset += 4;
+	//float_to_bytes(nh3_semeatech.temperature, packet, offset); offset += 4;
+	//float_to_bytes(nh3_semeatech.humidity, packet, offset); offset += 4;
+
+	medidas->data[16]  = ch3sh_semeatech.ppb;
+	medidas->data[17]  = ch3sh_semeatech.ug;
+	medidas->data[18]  = ch3sh_semeatech.temperature;
+	medidas->data[19]  = ch3sh_semeatech.humidity;
+	//float_to_bytes(ch3sh_semeatech.ppb, packet, offset); offset += 4;
+	//float_to_bytes(ch3sh_semeatech.ug, packet, offset); offset += 4;
+	//float_to_bytes(ch3sh_semeatech.temperature, packet, offset); offset += 4;
+	//float_to_bytes(ch3sh_semeatech.humidity, packet, offset); offset += 4;
+
+	medidas->data[20] = mics.co;
+	medidas->data[21] = mics.nh3;
+	medidas->data[22] = mics.no2;
+
+	medidas->data[23] = 0;
+	medidas->data[24] = 0;
+
+	medidas->data[23] = 0;
+	medidas->data[24] = 0;
+	medidas->data[25] = 0;
+
+	medidas->data[26] = bme.temp;
+	medidas->data[27] = bme.pres;
+	medidas->data[28] = bme.humid;
+	//float_to_bytes(bme.temp, packet, offset); offset += 4;
+	//float_to_bytes(bme.pres, packet, offset); offset += 4;
+	//float_to_bytes(bme.humid, packet, offset); offset += 4;
+
+	medidas->data[29] = anemo.direcao;
+	medidas->data[30] = anemo.vel_ms;
+
+	appendFileMedidas(file_name, medidas);
+
+	controleUmidade();
+
+	HAL_Delay(4000);
+
+	parse_data();
+
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+#ifdef IWDG_ON
+    HAL_IWDG_Refresh(&hiwdg);
+#endif
+  }
+  /* USER CODE END 3 */
+}
+
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  /** Configure the main internal regulator output voltage
+  */
+  HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
+
+  /** Configure LSE Drive Capability
+  */
+  HAL_PWR_EnableBkUpAccess();
+  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
+
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE
+                              |RCC_OSCILLATORTYPE_LSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSE;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/* USER CODE BEGIN 4 */
+
+/* USER CODE END 4 */
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
+}
+#ifdef USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */
